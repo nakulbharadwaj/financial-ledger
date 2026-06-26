@@ -1,0 +1,38 @@
+{
+  "_comment": "Claude Code local settings. MCP servers configured here are available to Claude during this project's sessions. Secrets pulled from .env via direnv or env vars — do NOT commit secrets to this file. For now, only filesystem is wired up; bank/finance MCPs get added in Phase 2.",
+  "permissions": {
+    "allow": [
+      "Bash(uv:*)",
+      "Bash(pytest:*)",
+      "Bash(ruff:*)",
+      "Bash(ledger:*)",
+      "Bash(git:*)",
+      "Bash(sqlite3:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(git push --force:*)"
+    ]
+  },
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "${workspaceFolder}/data",
+        "${workspaceFolder}/docs"
+      ]
+    },
+    "_plaid_disabled_until_phase_2": {
+      "_note": "Uncomment and rename to 'plaid' when ready. Requires Plaid sandbox keys in .env",
+      "command": "uv",
+      "args": ["run", "python", "-m", "ledger.mcp.plaid_server"],
+      "env": {
+        "PLAID_CLIENT_ID": "${env:PLAID_CLIENT_ID}",
+        "PLAID_SECRET": "${env:PLAID_SECRET}",
+        "PLAID_ENV": "sandbox"
+      }
+    }
+  }
+}
