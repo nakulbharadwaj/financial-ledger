@@ -5,14 +5,50 @@ See docs/data-model.md for narrative description.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, Field
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String
+from sqlalchemy import Date, DateTime, Dialect, ForeignKey, Numeric, String, TypeDecorator
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+
+def utcnow() -> datetime:
+    """Timezone-aware UTC now.
+
+    Audit timestamps are unambiguous when replayed — `datetime.utcnow()`
+    returned a naive value and is deprecated for removal.
+    """
+    return datetime.now(UTC)
+
+
+class UTCDateTime(TypeDecorator[datetime]):
+    """Stores UTC, always returns a timezone-aware UTC datetime.
+
+    SQLite silently discards tzinfo (`DateTime(timezone=True)` is a no-op
+    there), so without this we would write aware values and read naive ones
+    back — and comparing the two raises TypeError. Values are normalized to
+    UTC and persisted naive, which keeps them portable and correctly sortable
+    across backends; reads re-attach UTC.
+    """
+
+    impl = DateTime
+    cache_ok = True
+
+    def process_bind_param(self, value: datetime | None, dialect: Dialect) -> datetime | None:
+        if value is None:
+            return None
+        # A naive value from a caller is assumed to already be UTC.
+        if value.tzinfo is None:
+            return value
+        return value.astimezone(UTC).replace(tzinfo=None)
+
+    def process_result_value(self, value: datetime | None, dialect: Dialect) -> datetime | None:
+        if value is None:
+            return None
+        return value.replace(tzinfo=UTC)
 
 
 class AccountType(StrEnum):
@@ -45,7 +81,7 @@ class Account(Base):
     display_name: Mapped[str] = mapped_column(String)
     account_number_last4: Mapped[str | None] = mapped_column(String(4), nullable=True)
     currency: Mapped[str] = mapped_column(String(3), default="USD")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
     transactions: Mapped[list[Transaction]] = relationship(back_populates="account")
 
@@ -62,7 +98,7 @@ class Transaction(Base):
     balance_after: Mapped[Decimal | None] = mapped_column(Numeric(15, 2), nullable=True)
     source_file: Mapped[str] = mapped_column(String)
     source_row_hash: Mapped[str] = mapped_column(String, unique=True, index=True)
-    ingested_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    ingested_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
     account: Mapped[Account] = relationship(back_populates="transactions")
     categorizations: Mapped[list[Categorization]] = relationship(back_populates="transaction")
@@ -77,8 +113,8 @@ class Categorization(Base):
     subcategory: Mapped[str | None] = mapped_column(String, nullable=True)
     confidence: Mapped[float] = mapped_column()
     source: Mapped[str] = mapped_column(String)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    superseded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    superseded_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
     transaction: Mapped[Transaction] = relationship(back_populates="categorizations")
 
