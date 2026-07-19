@@ -1,10 +1,10 @@
 """Smoke tests — verify the package imports and models work."""
 
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
 
 from ledger import __version__
-from ledger.store.models import RawTransaction, AccountType
+from ledger.store.models import AccountType, RawTransaction
 
 
 def test_version() -> None:
