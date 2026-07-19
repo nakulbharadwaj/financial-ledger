@@ -50,3 +50,6 @@ data/*
 # Logs
 *.log
 logs/
+
+# Scaffolding archive — the repo itself is the source of truth
+ledger-starter.zip
